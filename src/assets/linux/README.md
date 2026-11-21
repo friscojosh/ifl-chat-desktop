@@ -1,69 +1,45 @@
-# Mattermost Desktop for Linux
+# IFL Chat for Linux
 
-## Table of Contents
-
-- [Install](#install)
-- [User Guide](#user-guide)
-- [Contributing](#contributing)
-- [License](#license)
-
+IFL Chat is the International Fantasy League's league chat app. Downloads, help and other platforms: <https://iflgm.com/apps>.
 
 ## Install
 
-If you installed the application via a package manager, it's ready to use in your system. Please follow the [User Guide](#user-guide) for further information.
+If you installed the `.deb` package, IFL Chat is in your applications menu and ready to use.
 
-Otherwise, first locate the extracted directory in your desired directory (e.g. `/opt/mattermost-desktop`) and follow the steps below. (This directory also contains this README here.)
+Otherwise, extract the archive to a directory of your choice (for example `/opt/ifl-chat`; it also contains this README) and follow the steps below.
 
 ### Desktop launcher
 
-Execute the script file to create a `com.Mattermost.Desktop.desktop` file.
+Run the script to create a `com.iflgm.chat.desktop.desktop` file (it also registers `iflchat://` links, used to finish signing in with iflgm.com):
 
-```
-/opt/mattermost-desktop/create_desktop_file.sh
+```sh
+/opt/ifl-chat/create_desktop_file.sh
 ```
 
-Then move it to the appropriate directory of your desktop environment. For example, on Ubuntu Unity it's `~/.local/share/applications/` for the current user.
+Then move it to your desktop environment's applications directory, for example for the current user:
 
-```
-mv com.Mattermost.Desktop.desktop ~/.local/share/applications/
+```sh
+mv com.iflgm.chat.desktop.desktop ~/.local/share/applications/
 ```
 
 ### Terminal command
 
-Set a `PATH` environment variable to enable launching from the terminal. For example, you can append the following line into `~/.bashrc`.
+To launch IFL Chat from a terminal, add its directory to your `PATH` (for example in `~/.bashrc`):
 
 ```sh
-# assuming that /opt/mattermost-desktop/com.Mattermost.Desktop is the executable file.
-export PATH=$PATH:/opt/mattermost-desktop
+export PATH=$PATH:/opt/ifl-chat
 ```
 
-Alternatively, you can also create a symbolic link for the application.
+or create a symbolic link:
 
 ```sh
-sudo ln -s /opt/mattermost-desktop/com.Mattermost.Desktop /usr/local/bin/mattermost-desktop
+sudo ln -s /opt/ifl-chat/ifl-chat /usr/local/bin/ifl-chat
 ```
 
-You're now all set! See the [User Guide](#user-guide) below for instructions.
+## Using IFL Chat
 
-
-## User Guide
-
-After launching, you need to configure the application to interact with your server.
-
-1. If you don't see a page titled "Settings", select **File** > **Settings...** from the menu bar.
-2. Click **Add new server** next to the right of Server Management section.
-3. Enter **Name** and a valid **URL**, which begins with either `http://` or `https://`.
-4. Click **Add**.
-5. Click **Save**.
-
-More guides are available at [Mattermost Documentation](https://docs.mattermost.com/messaging/managing-desktop-app-servers.html).
-
-
-## Contributing
-
-See [contributing guidelines](https://github.com/mattermost/desktop/blob/master/CONTRIBUTING.md) for reporting bugs, features or submitting pull requests.
-
+IFL Chat opens the league's chat at https://chat.iflgm.com; there is no server to set up. Choose **Sign in with iflgm.com** and finish signing in in your browser. Questions go to the commissioner.
 
 ## License
 
-Apache License, Version 2.0
+IFL Chat is built on Mattermost Desktop, open source software under the Apache License, Version 2.0 (see `LICENSE.txt` and `NOTICE.txt`).

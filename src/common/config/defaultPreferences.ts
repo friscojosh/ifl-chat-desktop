@@ -43,7 +43,7 @@ const defaultPreferences: ConfigV4 = {
     showUnreadBadge: true,
     useSpellChecker: true,
     enableHardwareAcceleration: true,
-    autostart: true,
+    autostart: false, // IFL: start on login is opt-in (new installs only; saved choices are kept)
     hideOnStart: false,
     spellCheckerLocales: [],
     darkMode: false,
