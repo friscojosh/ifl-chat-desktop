@@ -9,6 +9,8 @@ import {Logger} from 'common/log';
 import {copy} from 'common/utils/util';
 import * as Validator from 'common/Validator';
 
+import {IFL_POLICY_CONFIG} from 'ifl/release'; // IFL
+
 import type {
     AnyConfig,
     BuildConfig,
@@ -52,7 +54,7 @@ export class Config extends EventEmitter {
         this.appName = appName;
 
         this.reload();
-        if (process.platform === 'win32' || process.platform === 'darwin') {
+        if (IFL_POLICY_CONFIG && (process.platform === 'win32' || process.platform === 'darwin')) { // IFL: no GPO/MDM policy (it could add servers)
             this.onLoadRegistry(policyConfigLoader.getPolicyConfig());
         }
     };

@@ -189,8 +189,7 @@ export class PreAuthManager {
         }
         const viewServerId = webContents ? WebContentsManager.getViewByWebContentsId(webContents.id)?.serverId : undefined;
         const serverId = viewServerId ?? ServerManager.lookupServerByURL(request.url)?.id;
-        const serverUrl = serverId ? ServerManager.getServer(serverId)?.url.toString() : request.url;
-        const modalKey = authInfo.isProxy ? `${ModalConstants.PROXY_LOGIN_MODAL}-${authInfo.host}` : `${ModalConstants.LOGIN_MODAL}-${serverUrl}`;
+        const modalKey = authInfo.isProxy ? `${ModalConstants.PROXY_LOGIN_MODAL}-${authInfo.host}` : `${ModalConstants.LOGIN_MODAL}-${new URL(request.url).origin}-${authInfo.realm ?? ''}`; // IFL: key by the challenging origin and realm, never the view's server, so one origin's prompt and credentials are never reused for another
         const modalPromise = ModalManager.addModal<LoginModalData, {username: string; password: string}>(
             modalKey, loginModalHtml, preload, {request, authInfo}, mainWindow, false, authInfo.isProxy ? undefined : serverId);
         if (modalPromise) {

@@ -79,7 +79,7 @@ export function composeUserAgent(browserMode?: boolean) {
     const baseUserAgent = app.userAgentFallback.split(' ');
 
     // filter out the Mattermost tag that gets added earlier on
-    const filteredUserAgent = baseUserAgent.filter((ua) => !ua.startsWith('Mattermost'));
+    const filteredUserAgent = baseUserAgent.filter((ua) => !ua.startsWith('Mattermost') && ua !== 'IFL' && !ua.startsWith('Chat/')); // IFL: also drop Electron's "IFL Chat/<version>"; the webapp needs exactly one Mattermost/<version>
 
     if (browserMode) {
         return filteredUserAgent.join(' ');
@@ -129,7 +129,7 @@ export function resetScreensharePermissionsMacOS() {
     if (process.platform !== 'darwin') {
         return Promise.resolve();
     }
-    return exec('tccutil reset ScreenCapture Mattermost.Desktop',
+    return exec('tccutil reset ScreenCapture com.iflgm.chat.desktop', // IFL
         {timeout: 1000});
 }
 

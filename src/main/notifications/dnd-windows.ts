@@ -20,7 +20,7 @@ function getWindowsDoNotDisturb() {
     case 2:
         return true;
     case 1:
-        return !(isPriority('Mattermost.Desktop').value);
+        return !(isPriority('com.iflgm.chat.desktop').value); // IFL: IFL Chat's AppUserModelID
     default:
         return false;
     }

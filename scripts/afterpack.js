@@ -24,10 +24,10 @@ function fixSetuid(context) {
 function getAppFileName(context) {
     switch (context.electronPlatformName) {
     case 'win32':
-        return 'Mattermost.exe';
+        return 'IFL Chat.exe'; // IFL: productName
     case 'darwin':
     case 'mas':
-        return 'Mattermost.app';
+        return 'IFL Chat.app'; // IFL: productName
     case 'linux':
         return context.packager.executableName;
     default:

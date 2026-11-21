@@ -19,7 +19,7 @@ function getMacVersions() {
 }
 
 const config = {
-    appId: 'Mattermost.Desktop',
+    appId: 'com.iflgm.chat.desktop', // IFL: IFL Chat's own app id
     artifactName: '${version}/${name}-${version}-${os}-${arch}.${ext}',
     directories: {
         buildResources: 'src/assets',
@@ -57,19 +57,12 @@ const config = {
             filter: '**/*',
         },
     ],
-    protocols: [
-        {
-            name: 'Mattermost',
-            schemes: [
-                'mattermost',
-            ],
-        },
-    ],
+    protocols: [{name: 'IFL Chat', schemes: ['iflchat']}], // IFL: iflchat:// (the server fork's desktop hand-off)
     beforePack: 'scripts/beforepack.js',
     afterPack: 'scripts/afterpack.js',
     deb: {
         artifactName: '${version}/${name}_${version}-1_${arch}.${ext}',
-        synopsis: 'Mattermost Desktop App',
+        synopsis: 'IFL Chat', // IFL
         depends: [
             'libnotify4',
             'libxtst6',
@@ -86,15 +79,10 @@ const config = {
     ],
     linux: {
         category: 'Network;InstantMessaging',
-        target: [
-            'deb',
-            'tar.gz',
-            'appimage',
-            'rpm',
-            'flatpak',
-        ],
-        appId: 'com.Mattermost.Desktop',
-        executableName: 'com.Mattermost.Desktop',
+        target: ['deb', 'tar.gz', 'appimage'], // IFL: no rpm or flatpak
+        appId: 'com.iflgm.chat.desktop', // IFL
+        executableName: 'ifl-chat', // IFL
+        maintainer: 'International Fantasy League', // IFL: deb maintainer (package.json author has no email)
         desktop: {
             entry: {
                 StartupWMClass: pkg.desktopName,
@@ -142,7 +130,7 @@ const config = {
         extendInfo: {
             NSMicrophoneUsageDescription: 'Microphone access is used to capture audio for voice communication and recordings.',
             NSCameraUsageDescription: 'Camera access is used to capture video for video conferencing and recordings.',
-            NSFocusStatusUsageDescription: 'Focus status is used by Mattermost to determine whether to send notifications or not.',
+            NSFocusStatusUsageDescription: 'Focus status is used by IFL Chat to determine whether to send notifications or not.', // IFL
             LSFileQuarantineEnabled: true,
         },
         x64ArchFiles: '**/node_modules/@koromix/koffi-darwin-*/darwin_*/koffi.node',
@@ -195,10 +183,8 @@ const config = {
                     'NOTICE.txt',
                 ],
             },
-            {
-                from: 'resources/windows/gpo',
-                to: 'gpo',
-            },
+
+            // IFL: no GPO templates (Mattermost's enterprise policies)
         ],
         signExts: ['.dll', '.node'],
         azureSignOptions: process.env.AZURE_CLIENT_ID ? {
@@ -210,7 +196,7 @@ const config = {
     },
     msi: {
         additionalWixArgs: ['-ext', 'WixUtilExtension'],
-        upgradeCode: '{8523DAF0-699D-4CC7-9A65-C5E696A9DE6D}',
+        upgradeCode: '{3C1F7B2E-5A4D-4E8B-9F61-2D7A0C9B4E15}', // IFL: never upgrades or removes a stock Mattermost install
         perMachine: true,
     },
     rpm: {

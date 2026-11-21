@@ -107,7 +107,7 @@ describe('main/app/utils', () => {
         });
 
         it('should return url if deeplinking URL is valid', () => {
-            expect(getDeeplinkingURL(['mattermost', 'mattermost://server-1.com'])).toBe('mattermost://server-1.com');
+            expect(getDeeplinkingURL(['iflchat', 'iflchat://server-1.com'])).toBe('iflchat://server-1.com'); // IFL: iflchat scheme
         });
     });
 

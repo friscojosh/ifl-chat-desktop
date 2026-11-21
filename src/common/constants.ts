@@ -19,7 +19,7 @@ export const UPDATE_DOWNLOAD_ITEM: Omit<DownloadedItem, 'filename' | 'state'> = 
 };
 
 export const MAILTO_PREFIX = 'mailto:';
-export const MATTERMOST_PROTOCOL = 'mattermost';
+export const MATTERMOST_PROTOCOL = 'iflchat'; // IFL: IFL Chat's deep-link scheme
 
 // Regular expressions
 export const REGEX_EMAIL = /[a-zA-Z0-9.!#$%&’*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*/; // based on W3C input type email regex

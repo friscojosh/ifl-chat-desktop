@@ -8,10 +8,60 @@ New IFL code lives in `src/ifl/`, `ifl/` (assets, scripts) and `.github/workflow
 
 | Location | Purpose |
 | --- | --- |
+| `electron-builder.ts:22` | IFL Chat's own app id |
+| `electron-builder.ts:60` | iflchat:// (the server fork's desktop hand-off) |
+| `electron-builder.ts:65` | deb synopsis "IFL Chat" |
+| `electron-builder.ts:82` | no rpm or flatpak |
+| `electron-builder.ts:83` | Linux app id `com.iflgm.chat.desktop` |
+| `electron-builder.ts:84` | Linux executable `ifl-chat` |
+| `electron-builder.ts:85` | deb maintainer (package.json author has no email) |
+| `electron-builder.ts:133` | macOS Focus usage string names IFL Chat |
+| `electron-builder.ts:187` | no GPO templates (Mattermost's enterprise policies) |
+| `electron-builder.ts:199` | never upgrades or removes a stock Mattermost install |
+| `scripts/afterpack.js:27` | Windows executable name (productName) |
+| `scripts/afterpack.js:30` | macOS app bundle name (productName) |
+| `src/assets/linux/create_desktop_file.sh:10` | IFL Chat's desktop entry |
+| `src/common/config/buildConfig.ts:24` | IFL Chat opens only the league's server; links go to iflgm.com (IFL.md) |
+| `src/common/config/index.ts:12` | imports `IFL_POLICY_CONFIG` |
+| `src/common/config/index.ts:57` | no GPO/MDM policy (it could add servers) |
+| `src/common/constants.ts:22` | IFL Chat's deep-link scheme |
+| `src/main/app/initialize.test.js:167` | electron mock has no setAboutPanelOptions |
+| `src/main/app/initialize.ts:68` | imports `setIflAboutPanel` |
+| `src/main/app/initialize.ts:234` | About names IFL Chat |
+| `src/main/app/initialize.ts:238` | dev builds' scheme |
+| `src/main/app/initialize.ts:337` | IFL Chat's AppUserModelID |
+| `src/main/app/utils.test.js:110` | iflchat scheme |
+| `src/main/app/utils.ts:50` | dev builds' scheme |
+| `src/main/notifications/dnd-windows.ts:23` | IFL Chat's AppUserModelID |
+| `src/main/security/preAuthManager.test.js:289` | keyed by request origin and realm |
+| `src/main/security/preAuthManager.test.js:305` | keyed by request origin and realm, not the view's server |
+| `src/main/security/preAuthManager.test.js:315` | two origins in one view never share a login prompt or its credentials |
+| `src/main/security/preAuthManager.test.js:337` | keyed by request origin and realm |
+| `src/main/security/preAuthManager.ts:192` | key by the challenging origin and realm, never the view's server, so one origin's prompt and credentials are never reused for another |
+| `src/main/updateNotifier.ts:32` | imports the release-name helpers |
+| `src/main/updateNotifier.ts:225` | ifl-v tags |
+| `src/main/updateNotifier.ts:238` | ifl-chat-<version> artifacts |
+| `src/main/utils.ts:82` | also drop Electron's "IFL Chat/<version>"; the webapp needs exactly one Mattermost/<version> |
+| `src/main/utils.ts:132` | macOS screen-capture reset uses our bundle id |
 
 ## JSON exceptions
 
 `package.json` and `i18n/en.json` cannot carry comments. Changed keys are listed here; on a merge conflict keep ours.
+
+- `package.json`: `name`, `productName`, `version`, `description`, `author`, `desktopName`, `homepage` (and `package-lock.json`'s top-level `name` and `version` to match).
+- `i18n/en.json`: `main.app.app.handleAppCertificateError.certError.dialog.message`, `main.menus.app.help.academy`, `renderer.components.configureServer.url.info`, `renderer.components.configureServer.url.notMattermost`, `renderer.components.configureServer.url.urlNotMatched`, `renderer.components.configureServer.url.urlUpdated`, `renderer.components.developerModeIndicator.tooltip`, `renderer.components.newServerModal.permissions.notifications.mac`, `renderer.components.newServerModal.permissions.notifications.windows`, `renderer.components.newServerModal.serverURL.description`, `renderer.components.newServerModal.warning.notMattermost`, `renderer.components.newServerModal.warning.urlNotMatched`, `renderer.components.newServerModal.warning.urlUpdated`, `renderer.components.welcomeScreen.slides.welcome.subtitle`.
+
+IFL's own files (`src/ifl/*.ts`) start with `/* eslint-disable header/header */`: upstream's lint rule requires the Mattermost copyright header, which IFL code does not carry.
+
+## What the fork changes
+
+- **Locked server.** `buildConfig.ts` has one default server (`https://chat.iflgm.com`) and server management off; GPO/MDM policy is not loaded (`IFL_POLICY_CONFIG`), since a policy can add servers or turn management back on.
+- **Identity.** App id, AppUserModelID and Linux desktop name `com.iflgm.chat.desktop`; product name IFL Chat; executable `ifl-chat`; new MSI upgrade code, so it installs beside stock Mattermost and never removes it; no GPO templates; About credits Mattermost Desktop (`src/ifl/about.ts`). The user agent still ends in `Mattermost/<version>` (the webapp's desktop detection); Electron's `IFL Chat/<version>` token is dropped.
+- **Sign-in.** Scheme `iflchat` (`iflchat-dev` in dev). The server fork hands the browser sign-in back on it.
+- **Updates.** Feed `https://iflgm.com/apps/desktop` (`latest.txt` and per-version download redirects to this repo's releases, served by ifl-website's nginx); artifacts `ifl-chat-<version>-<os>-<arch>.<ext>` (deb `ifl-chat_<version>-1_<arch>.deb`; the x64 AppImage is `ifl-chat-<version>-linux-x86_64.AppImage`); release tags `ifl-v<version>` (`src/ifl/release.ts`).
+- **Icons.** Generated by `ifl/scripts/gen-icons.sh` from `ifl/assets/` and committed. The renderer's Mattermost wordmark (`Images/Logo.tsx`) is unchanged: only the welcome and server-setup screens use it, and they never show with a locked server.
+- **Security fix (basic auth).** Upstream keys the HTTP basic-auth login modal by the owning view's server URL, so a pending prompt (and the credentials typed into it) for one origin could be handed to a request from another origin in the same view. `preAuthManager.ts` keys it by the challenging request's origin and realm instead (proxy logins unchanged); the server id is still used only to scope where the modal shows. Covered by `preAuthManager.test.js` ("should key the login modal by request origin and realm"). Worth reporting upstream.
+- **Upstream tests changed.** Expected values that name Mattermost's id, scheme or modal key are changed to ours with a `// IFL:` comment (`src/main/app/utils.test.js`, `src/main/app/initialize.test.js`, `src/main/security/preAuthManager.test.js`); the code under test is never changed to satisfy them.
 
 ## Build and release
 

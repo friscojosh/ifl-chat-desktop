@@ -1,13 +1,13 @@
 {
-  "name": "mattermost-desktop",
-  "productName": "Mattermost",
-  "version": "6.4.0",
-  "description": "Mattermost",
+  "name": "ifl-chat",
+  "productName": "IFL Chat",
+  "version": "6.4.1",
+  "description": "IFL Chat",
   "main": "dist/index.js",
-  "author": "Mattermost, Inc. <feedback@mattermost.com>",
+  "author": "International Fantasy League",
   "license": "Apache-2.0",
-  "desktopName": "com.Mattermost.Desktop",
-  "homepage": "https://mattermost.com",
+  "desktopName": "com.iflgm.chat.desktop",
+  "homepage": "https://iflgm.com",
   "engines": {
     "node": ">=24.0.0"
   },

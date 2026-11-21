@@ -7,17 +7,18 @@ cd "$(dirname "$THIS_PATH")"
 FULL_PATH=$(pwd)
 cd "$WORKING_DIR"
 
-cat <<EOS > com.Mattermost.Desktop.desktop
+# IFL: IFL Chat's desktop entry
+cat <<EOS > com.iflgm.chat.desktop.desktop
 [Desktop Entry]
-Name=Mattermost
-Comment=Mattermost Desktop application for Linux
-Exec="${FULL_PATH}/com.Mattermost.Desktop" %U
+Name=IFL Chat
+Comment=League chat for the International Fantasy League
+Exec="${FULL_PATH}/ifl-chat" %U
 Terminal=false
 Type=Application
-MimeType=x-scheme-handler/mattermost
+MimeType=x-scheme-handler/iflchat
 Icon="${FULL_PATH}/app_icon.png"
 Categories=Network;InstantMessaging;
-StartupWMClass=com.Mattermost.Desktop
+StartupWMClass=com.iflgm.chat.desktop
 EOS
 
-chmod +x com.Mattermost.Desktop.desktop
+chmod +x com.iflgm.chat.desktop.desktop

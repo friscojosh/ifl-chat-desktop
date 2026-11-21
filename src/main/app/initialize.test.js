@@ -164,6 +164,7 @@ jest.mock('main/AutoLauncher', () => ({
     upgradeAutoLaunch: jest.fn(),
 }));
 jest.mock('main/updateNotifier', () => ({}));
+jest.mock('ifl/about', () => ({setIflAboutPanel: jest.fn()})); // IFL: electron mock has no setAboutPanelOptions
 jest.mock('app/system/badge', () => ({
     setupBadge: jest.fn(),
     setBadgeTestRecorder: jest.fn(),
