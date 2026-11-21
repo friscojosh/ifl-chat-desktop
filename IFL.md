@@ -66,8 +66,12 @@ IFL's own files (`src/ifl/*.ts`) start with `/* eslint-disable header/header */`
 ## Build and release
 
 - `ifl-ci.yml` (pushes and pull requests to `ifl/main`): lint, types, build config check, unit tests and an unsigned Linux build. No secrets. Upstream's i18n check (`npm run i18n-extract` then `git diff i18n/en.json`) is not run: IFL text lives only in `i18n/en.json` (see JSON exceptions).
-- `ifl-release-desktop.yml`: see "Releases".
+- `ifl-release-desktop.yml`: see "Releases" below.
 - `ifl-upstream.yml` (Mondays 10:00 UTC): trial-merges the newest stable upstream tag not yet merged, runs the checks, and opens or updates an `Upstream <tag>` issue. It never pushes.
+
+## Releases
+
+`ifl-release-desktop.yml` runs on a tag `ifl-v<version>` or by hand. Linux and Windows build without secrets; the macOS job (signing and notarisation) and the publish job run in the `release` environment, so the run waits for Josh's approval. Secrets (environment `release`, set by Josh): `MAC_CSC_LINK` (Developer ID Application .p12, base64), `MAC_CSC_KEY_PASSWORD`, `MAC_PROVISION_PROFILE` (Developer ID provisioning profile for `com.iflgm.chat.desktop`, base64; the communication-notifications entitlement needs it), `ASC_API_KEY_P8`, `ASC_API_KEY_ID`, `ASC_API_ISSUER_ID` (App Store Connect API key, for notarisation). The result is a draft release with every installer, `SHA256SUMS` and `latest.txt`; publishing it makes it the update feed's latest. Windows builds are unsigned (no `AZURE_*` secrets). Release steps: bump `package.json` `version`, commit, `git tag ifl-v<version> && git push origin ifl-v<version>`, approve the run, check the draft, publish.
 
 ## Upstream releases
 

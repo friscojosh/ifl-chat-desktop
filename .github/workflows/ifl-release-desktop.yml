@@ -1,0 +1,149 @@
+name: ifl-release-desktop
+on:
+  push:
+    tags: ['ifl-v[0-9]+.[0-9]+.[0-9]+']
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: ifl-release-desktop
+  cancel-in-progress: false
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Build dependencies (cross compilers for arm64)
+        run: sudo apt-get update && sudo apt-get install -y libxtst-dev libpng++-dev gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+      - run: npm ci
+      - run: npm run check-types && npm run test:unit
+        env:
+          ELECTRON_DISABLE_SANDBOX: "1"
+      - name: Package
+        run: |
+          npm run build-prod
+          npm run package:linux:arch-x64 -- deb tar.gz appimage --x64 --publish=never
+          npm run package:linux:arch-arm64 -- deb tar.gz appimage --arm64 --publish=never
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: linux
+          path: release/*/ifl-chat*
+          if-no-files-found: error
+
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Electron headers for native modules (x64, arm64)
+        shell: powershell
+        run: |
+          npm i -g node-gyp
+          node-gyp install
+          node-gyp install --devdir="C:\Users\runneradmin\.electron-gyp" --target=$(jq -r .devDependencies.electron package.json) --dist-url="https://electronjs.org/headers"
+          node-gyp install --devdir="C:\Users\runneradmin\.electron-gyp" --target=$(jq -r .devDependencies.electron package.json) --dist-url="https://electronjs.org/headers" --arch arm64
+          npm ci --openssl_fips=''
+      - name: Package (unsigned, Josh's decision D4)
+        shell: powershell
+        env:
+          MM_WIN_INSTALLERS: 1
+        run: npm run package:windows
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows
+          path: release/*/ifl-chat*
+          if-no-files-found: error
+
+  mac:
+    runs-on: macos-15
+    timeout-minutes: 90
+    environment: release
+    env:
+      MACOS_NOTIFICATION_STATE_NO_SDK_CHECK: "true"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - name: Stapler over TCP (actions/runner-images#14924, as upstream)
+        run: |
+          echo "block return out quick proto udp from any to any port 443" | sudo pfctl -f -
+          sudo pfctl -E
+      - name: Signing material (temporary files)
+        env:
+          MAC_PROVISION_PROFILE: ${{ secrets.MAC_PROVISION_PROFILE }}
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+        run: |
+          umask 077
+          printf '%s' "$MAC_PROVISION_PROFILE" | base64 -D > ./mac.provisionProfile
+          printf '%s\n' "$ASC_API_KEY_P8" > "$RUNNER_TEMP/asc.p8"
+      - name: Package, sign and notarise
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_API_KEY: ${{ runner.temp }}/asc.p8
+          APPLE_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.ASC_API_ISSUER_ID }}
+        run: npm run package:mac-with-universal
+      - name: Remove signing material
+        if: always()
+        run: rm -f ./mac.provisionProfile "$RUNNER_TEMP/asc.p8"
+      - name: Check signature and notarisation
+        run: |
+          APP=$(find release -maxdepth 3 -name 'IFL Chat.app' -path '*universal*' | head -1)
+          codesign --verify --deep --strict "$APP"
+          spctl -a -vv "$APP" 2>&1 | tee /dev/stderr | grep -q 'Notarized Developer ID'
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mac
+          path: release/*/ifl-chat*
+          if-no-files-found: error
+
+  publish:
+    needs: [linux, windows, mac]
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: dist
+      - name: Draft the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(jq -r .version package.json)
+          TAG="ifl-v${VERSION}"
+          UPSTREAM=$(cat ifl/UPSTREAM)
+          mkdir out
+          find dist -type f -name 'ifl-chat*' -exec cp -t out {} +
+          printf '%s\n' "$VERSION" > out/latest.txt
+          (cd out && sha256sum ifl-chat* > SHA256SUMS)
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --target "$GITHUB_SHA" \
+            --title "IFL Chat ${VERSION}" \
+            --notes "IFL Chat ${VERSION} for Windows, macOS and Linux, built on Mattermost Desktop ${UPSTREAM}. Checksums in SHA256SUMS. Windows builds are unsigned: choose More info, then Run anyway." \
+            out/*
