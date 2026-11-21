@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- IFL Chat tray glyph: a speech bubble with a football knocked out.
+       gen-icons.sh replaces FILL (glyph colour), DOT (badge colour or none)
+       and RING (#000 cuts a gap round the badge, #fff leaves the bubble whole). -->
+  <defs>
+    <mask id="ball">
+      <rect width="32" height="32" fill="#fff"/>
+      <circle cx="26" cy="6" r="6.6" fill="RING"/>
+      <g transform="rotate(-30 16 13)">
+        <ellipse cx="16" cy="13" rx="8.5" ry="4.8" fill="#000"/>
+        <path d="M12.5 13h7M14 11.6v2.8M16 11.6v2.8M18 11.6v2.8" stroke="#fff" stroke-width="1.1" stroke-linecap="round"/>
+      </g>
+    </mask>
+  </defs>
+  <path mask="url(#ball)" fill="FILL" d="M6 3h20a4 4 0 0 1 4 4v12a4 4 0 0 1-4 4H15l-6.5 5.5V23H6a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4z"/>
+  <circle cx="26" cy="6" r="5" fill="DOT"/>
+</svg>
