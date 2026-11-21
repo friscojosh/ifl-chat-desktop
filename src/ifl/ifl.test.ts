@@ -2,9 +2,13 @@
 // IFL: new file. IFL Chat's identity, locked server and release names (IFL.md).
 
 import buildConfig from 'common/config/buildConfig';
+import defaultPreferences from 'common/config/defaultPreferences';
+import upgradePreferences from 'common/config/upgradePreferences';
 import {MATTERMOST_PROTOCOL} from 'common/constants';
 
 import {IFL_POLICY_CONFIG, IFL_UPSTREAM_VERSION, iflArtifactName, iflReleaseTag} from './release';
+
+jest.mock('electron', () => ({app: {getPath: jest.fn(() => '/valid/downloads/path')}}));
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const pkg = require('../../package.json');
@@ -16,6 +20,19 @@ describe('IFL Chat desktop', () => {
         expect(buildConfig.enableServerManagement).toBe(false);
         expect(buildConfig.defaultServers).toEqual([{name: 'IFL Chat', url: 'https://chat.iflgm.com'}]); // order is set from the index (common/config)
         expect(IFL_POLICY_CONFIG).toBe(false);
+    });
+
+    it('does not start on login unless the user turns it on', () => {
+        expect(defaultPreferences.autostart).toBe(false);
+    });
+
+    it('keeps an existing user\'s start-on-login choice', () => {
+        // A saved current config keeps its value; older configs upgrade with
+        // upstream's past defaults (pastDefaultPreferences), which we leave alone.
+        const saved = {...defaultPreferences, autostart: true};
+        expect(upgradePreferences(saved).autostart).toBe(true);
+        const v3 = {version: 3, teams: [], lastActiveTeam: 0, autostart: true};
+        expect(upgradePreferences(v3 as never).autostart).toBe(true);
     });
 
     it('links iflgm.com and never mattermost.com', () => {
