@@ -1,27 +1,43 @@
 name: ifl-upstream
+# Weekly trial merge of the newest stable Mattermost Desktop 6.x tag (IFL.md).
+# Job "trial" runs upstream's code with a read-only token and no secrets and
+# reports only a fixed status; job "report" never checks out or runs the
+# merged tree, it only writes the issue. Nothing is ever pushed.
 on:
   schedule:
     - cron: '0 10 * * 1'
   workflow_dispatch: {}
 permissions:
   contents: read
-  issues: write
 jobs:
-  trial-merge:
+  trial:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      status: ${{ steps.result.outputs.status }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Newest stable upstream tag not yet merged
+      - name: Newest stable upstream 6.x tag not yet merged
         id: tag
         run: |
-          git remote add upstream https://github.com/mattermost/desktop.git
-          git fetch --quiet upstream 'refs/tags/v*:refs/tags/v*'
-          TAG=$(git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
-          if git merge-base --is-ancestor "$TAG" HEAD; then echo "tag=" >> "$GITHUB_OUTPUT"; else echo "tag=$TAG" >> "$GITHUB_OUTPUT"; fi
+          UPSTREAM_URL=https://github.com/mattermost/desktop.git
+          # Upstream tags go to their own namespace, so a tag on this fork never stands in for one.
+          git fetch --quiet --no-tags "$UPSTREAM_URL" '+refs/tags/v6.*:refs/upstream-tags/v6.*'
+          TAG=$(git for-each-ref --format='%(refname:lstrip=2)' refs/upstream-tags \
+            | grep -E '^v6\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)
+          if [ -z "$TAG" ]; then echo "::error::no v6.x.y tag on mattermost/desktop"; exit 1; fi
+          # The tag must point at the same commit on mattermost/desktop right now.
+          LOCAL=$(git rev-parse "refs/upstream-tags/$TAG^{commit}")
+          REMOTE=$(git ls-remote "$UPSTREAM_URL" "refs/tags/$TAG^{}" | awk '{print $1}')
+          if [ -z "$REMOTE" ]; then REMOTE=$(git ls-remote "$UPSTREAM_URL" "refs/tags/$TAG" | awk '{print $1}'); fi
+          if [ "$LOCAL" != "$REMOTE" ]; then echo "::error::$TAG does not match mattermost/desktop"; exit 1; fi
+          if git merge-base --is-ancestor "$LOCAL" HEAD; then echo "tag=" >> "$GITHUB_OUTPUT"; else echo "tag=$TAG" >> "$GITHUB_OUTPUT"; fi
       - name: Trial merge
         if: steps.tag.outputs.tag != ''
         id: merge
@@ -30,38 +46,64 @@ jobs:
         run: |
           git config user.name ifl-upstream
           git config user.email ifl-upstream@users.noreply.github.com
-          if git merge --no-edit "$TAG"; then
-            echo "result=merges cleanly" >> "$GITHUB_OUTPUT"
+          if git merge --no-edit "refs/upstream-tags/$TAG"; then
+            echo "merged=yes" >> "$GITHUB_OUTPUT"
           else
-            echo "result=conflicts in $(git diff --name-only --diff-filter=U | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
+            echo "merged=no" >> "$GITHUB_OUTPUT"
+            git diff --name-only --diff-filter=U
             git merge --abort
           fi
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        if: steps.merge.outputs.result == 'merges cleanly'
+        if: steps.merge.outputs.merged == 'yes'
         with:
           node-version-file: .nvmrc
       - name: Checks on the merge
-        if: steps.merge.outputs.result == 'merges cleanly'
+        if: steps.merge.outputs.merged == 'yes'
         id: checks
+        continue-on-error: true
         env:
           ELECTRON_DISABLE_SANDBOX: "1"
         run: |
           sudo apt-get update && sudo apt-get install -y libxtst-dev libpng++-dev
-          if npm ci && npm run check-types && npm run test:unit && npm run build-prod && npx electron-builder --linux tar.gz --x64 --publish=never; then
-            echo "result=checks and an unsigned Linux build pass" >> "$GITHUB_OUTPUT"
-          else
-            echo "result=checks FAIL (see the run log)" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Open or update the issue
+          npm ci
+          npm run check-types
+          npm run test:unit
+          npm run build-prod
+          npx electron-builder --linux tar.gz --x64 --publish=never
+      - name: Result
         if: steps.tag.outputs.tag != ''
+        id: result
+        env:
+          MERGED: ${{ steps.merge.outputs.merged }}
+          CHECKS: ${{ steps.checks.outcome }}
+        run: |
+          if [ "$MERGED" != yes ]; then S=conflict
+          elif [ "$CHECKS" = success ]; then S=clean
+          else S=fail; fi
+          echo "status=$S" >> "$GITHUB_OUTPUT"
+
+  report:
+    needs: trial
+    if: needs.trial.outputs.tag != ''
+    runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the issue
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.tag.outputs.tag }}
-          MERGE: ${{ steps.merge.outputs.result }}
-          CHECKS: ${{ steps.checks.outputs.result }}
+          TAG: ${{ needs.trial.outputs.tag }}
+          STATUS: ${{ needs.trial.outputs.status }}
           RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          [[ "$TAG" =~ ^v6\.[0-9]+\.[0-9]+$ ]] || { echo "::error::unexpected tag"; exit 1; }
+          case "$STATUS" in
+            clean) TEXT="merges cleanly; checks and an unsigned Linux build pass" ;;
+            conflict) TEXT="merge conflicts (file list in the run log)" ;;
+            fail) TEXT="merges cleanly, but checks FAIL (see the run log)" ;;
+            *) echo "::error::unexpected status"; exit 1 ;;
+          esac
           TITLE="Upstream $TAG"
-          BODY="Mattermost Desktop $TAG: $MERGE. ${CHECKS:-checks not run}. Run: $RUN. Merge on a workstation (IFL.md, Upstream releases)."
+          BODY="Mattermost Desktop $TAG: $TEXT. Run: $RUN. Merge on a workstation (IFL.md, Upstream releases)."
           N=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --search "\"$TITLE\" in:title" --json number --jq '.[0].number // empty')
           if [ -n "$N" ]; then gh issue comment "$N" -R "$GITHUB_REPOSITORY" --body "$BODY"; else gh issue create -R "$GITHUB_REPOSITORY" --title "$TITLE" --body "$BODY"; fi

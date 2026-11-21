@@ -1,8 +1,9 @@
 name: ifl-release-desktop
+# Tag pushes only: the release environment (Josh's approval, tags ifl-v* only)
+# holds the signing secrets, so no other ref can reach them.
 on:
   push:
     tags: ['ifl-v[0-9]+.[0-9]+.[0-9]+']
-  workflow_dispatch: {}
 permissions:
   contents: read
 concurrency:
@@ -10,6 +11,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   linux:
+    if: startsWith(github.ref, 'refs/tags/ifl-v')
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -39,6 +41,7 @@ jobs:
           if-no-files-found: error
 
   windows:
+    if: startsWith(github.ref, 'refs/tags/ifl-v')
     runs-on: windows-2022
     timeout-minutes: 75
     steps:
@@ -70,6 +73,7 @@ jobs:
           if-no-files-found: error
 
   mac:
+    if: startsWith(github.ref, 'refs/tags/ifl-v')
     runs-on: macos-15
     timeout-minutes: 90
     environment: release
@@ -120,6 +124,7 @@ jobs:
           if-no-files-found: error
 
   publish:
+    if: startsWith(github.ref, 'refs/tags/ifl-v')
     needs: [linux, windows, mac]
     runs-on: ubuntu-24.04
     environment: release
@@ -137,13 +142,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION=$(jq -r .version package.json)
-          TAG="ifl-v${VERSION}"
+          TAG="$GITHUB_REF_NAME"
+          if [ "$TAG" != "ifl-v${VERSION}" ]; then
+            echo "::error::tag $TAG does not match package.json version (expected ifl-v${VERSION})"
+            exit 1
+          fi
           UPSTREAM=$(cat ifl/UPSTREAM)
           mkdir out
           find dist -type f -name 'ifl-chat*' -exec cp -t out {} +
           printf '%s\n' "$VERSION" > out/latest.txt
           (cd out && sha256sum ifl-chat* > SHA256SUMS)
-          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --target "$GITHUB_SHA" \
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --verify-tag \
             --title "IFL Chat ${VERSION}" \
             --notes "IFL Chat ${VERSION} for Windows, macOS and Linux, built on Mattermost Desktop ${UPSTREAM}. Checksums in SHA256SUMS. Windows builds are unsigned: choose More info, then Run anyway." \
             out/*
