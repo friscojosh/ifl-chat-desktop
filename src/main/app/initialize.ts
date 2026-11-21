@@ -65,6 +65,8 @@ import SessionAttributesManager from 'main/sessionAttributes/sessionAttributesMa
 import updateNotifier from 'main/updateNotifier';
 import UserActivityMonitor from 'main/UserActivityMonitor';
 
+import {setIflAboutPanel} from 'ifl/about'; // IFL
+
 import {
     handleAppActivate,
     handleAppBeforeQuit,
@@ -229,10 +231,11 @@ function initializeBeforeAppReady() {
         }
     }
 
+    setIflAboutPanel(); // IFL: About names IFL Chat
     AllowProtocolDialog.init();
 
     if (isDev && process.env.NODE_ENV !== 'test') {
-        app.setAsDefaultProtocolClient('mattermost-dev', process.execPath, [path.resolve(process.cwd(), 'dist/')]);
+        app.setAsDefaultProtocolClient('iflchat-dev', process.execPath, [path.resolve(process.cwd(), 'dist/')]); // IFL: dev builds' scheme
     } else {
         app.setAsDefaultProtocolClient(MATTERMOST_PROTOCOL);
     }
@@ -331,7 +334,7 @@ async function initializeAfterAppReady() {
     ServerManager.init();
     ServerManager.off(SERVER_ADDED, PreAuthManager.loadPreAuthSecretForServer);
 
-    app.setAppUserModelId('Mattermost.Desktop'); // Use explicit AppUserModelID
+    app.setAppUserModelId('com.iflgm.chat.desktop'); // IFL: IFL Chat's AppUserModelID
     const defaultSession = session.defaultSession;
     defaultSession.webRequest.onBeforeRequest(async (details, callback) => {
         try {

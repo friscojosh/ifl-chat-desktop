@@ -286,7 +286,7 @@ describe('main/preAuthManager', () => {
                     host: 'anormalurl',
                 }, callback);
             expect(ModalManager.addModal).toBeCalledWith(
-                'loginModal-http://trustedurl.com/',
+                'loginModal-http://trustedurl.com-', // IFL: keyed by request origin and realm
                 expect.any(String),
                 expect.any(String),
                 expect.any(Object),
@@ -302,7 +302,7 @@ describe('main/preAuthManager', () => {
             WebContentsManager.getViewByWebContentsId.mockReturnValueOnce({serverId: 'view-server'});
             preAuthManager.handleBasicAuth({preventDefault: jest.fn()}, {id: 1}, {url: 'http://trustedurl.com/some/path'}, {isProxy: false, host: 'trustedurl'}, jest.fn());
             expect(ModalManager.addModal).toBeCalledWith(
-                'loginModal-http://viewserver.com/',
+                'loginModal-http://trustedurl.com-', // IFL: keyed by request origin and realm, not the view's server
                 expect.any(String),
                 expect.any(String),
                 expect.any(Object),
@@ -312,13 +312,29 @@ describe('main/preAuthManager', () => {
             );
         });
 
+        // IFL: two origins in one view never share a login prompt or its credentials.
+        it('should key the login modal by request origin and realm', () => {
+            ModalManager.addModal.mockClear();
+            ServerManager.lookupServerByURL.mockReturnValue({id: 'view-server', url: new URL('http://viewserver.com/')});
+            ServerManager.getServer.mockReturnValue({id: 'view-server', url: new URL('http://viewserver.com/')});
+            WebContentsManager.getViewByWebContentsId.mockReturnValue({serverId: 'view-server'});
+            preAuthManager.handleBasicAuth({preventDefault: jest.fn()}, {id: 1}, {url: 'http://a.example.com/x'}, {isProxy: false, host: 'a.example.com', realm: 'r'}, jest.fn());
+            preAuthManager.handleBasicAuth({preventDefault: jest.fn()}, {id: 1}, {url: 'http://b.example.com/x'}, {isProxy: false, host: 'b.example.com', realm: 'r'}, jest.fn());
+            preAuthManager.handleBasicAuth({preventDefault: jest.fn()}, {id: 1}, {url: 'http://a.example.com/y'}, {isProxy: false, host: 'a.example.com', realm: 'other'}, jest.fn());
+            const keys = ModalManager.addModal.mock.calls.map((call) => call[0]);
+            expect(keys).toEqual(['loginModal-http://a.example.com-r', 'loginModal-http://b.example.com-r', 'loginModal-http://a.example.com-other']);
+            expect(new Set(keys).size).toBe(3);
+            ModalManager.addModal.mock.calls.forEach((call) => expect(call[6]).toBe('view-server'));
+            WebContentsManager.getViewByWebContentsId.mockReset();
+        });
+
         it('should scope the modal to the server of the request URL when there is no view', () => {
             ServerManager.lookupServerByURL.mockReturnValue({id: 'url-server', url: new URL('http://trustedurl.com/')});
             ServerManager.getServer.mockReturnValue({id: 'url-server', url: new URL('http://trustedurl.com/')});
             WebContentsManager.getViewByWebContentsId.mockReturnValueOnce(undefined);
             preAuthManager.handleBasicAuth({preventDefault: jest.fn()}, {id: 1}, {url: 'http://trustedurl.com/some/path'}, {isProxy: false, host: 'trustedurl'}, jest.fn());
             expect(ModalManager.addModal).toBeCalledWith(
-                'loginModal-http://trustedurl.com/',
+                'loginModal-http://trustedurl.com-', // IFL: keyed by request origin and realm
                 expect.any(String),
                 expect.any(String),
                 expect.any(Object),

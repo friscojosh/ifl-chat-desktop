@@ -29,6 +29,8 @@ import {localizeMessage} from 'main/i18nManager';
 import NotificationManager from 'main/notifications';
 import {openExternalSafely} from 'main/utils';
 
+import {iflArtifactName, iflReleaseTag} from 'ifl/release'; // IFL
+
 const NEXT_NOTIFY = 86400000; // 24 hours
 const NEXT_CHECK = 3600000; // 1 hour
 
@@ -220,7 +222,7 @@ export class UpdateNotifier {
         }
         if (process.platform === 'linux') {
             const version = this.versionAvailable;
-            const releaseURL = `${buildConfig.linuxGitHubReleaseURL}/v${version}`;
+            const releaseURL = `${buildConfig.linuxGitHubReleaseURL}/${iflReleaseTag(version)}`; // IFL: ifl-v tags
             openExternalSafely(releaseURL);
         }
     };
@@ -233,7 +235,7 @@ export class UpdateNotifier {
     };
 
     private getDownloadURL = (version: string, platformName: string, fileExt: string, archName: string): string => {
-        return `mattermost-desktop-${version}-${platformName}-${archName}.${fileExt}`;
+        return iflArtifactName(version, platformName, fileExt, archName); // IFL: ifl-chat-<version> artifacts
     };
 
     private skipVersion = (): void => {
