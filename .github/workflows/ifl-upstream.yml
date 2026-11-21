@@ -1,0 +1,130 @@
+name: ifl-upstream
+# Weekly merge check against the newest stable Mattermost Desktop 6.x tag (IFL.md).
+# This workflow never runs upstream code: it only asks git whether the tag
+# merges. "check" has a read-only token; "propose" pushes the merge to a
+# branch upstream/<tag> and opens a PR (whose CI builds and tests it, with no
+# secrets), or opens an issue when the merge conflicts or cannot be pushed.
+on:
+  schedule:
+    - cron: '0 10 * * 1'
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      status: ${{ steps.merge.outputs.status }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Newest stable upstream 6.x tag not yet merged
+        id: tag
+        run: |
+          UPSTREAM_URL=https://github.com/mattermost/desktop.git
+          # Upstream tags go to their own namespace, so a tag on this fork never stands in for one.
+          git fetch --quiet --no-tags "$UPSTREAM_URL" '+refs/tags/v6.*:refs/upstream-tags/v6.*'
+          TAG=$(git for-each-ref --format='%(refname:lstrip=2)' refs/upstream-tags \
+            | grep -E '^v6\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)
+          if [ -z "$TAG" ]; then echo "::error::no v6.x.y tag on mattermost/desktop"; exit 1; fi
+          # The tag must point at the same commit on mattermost/desktop right now.
+          LOCAL=$(git rev-parse "refs/upstream-tags/$TAG^{commit}")
+          REMOTE=$(git ls-remote "$UPSTREAM_URL" "refs/tags/$TAG^{}" | awk '{print $1}')
+          if [ -z "$REMOTE" ]; then REMOTE=$(git ls-remote "$UPSTREAM_URL" "refs/tags/$TAG" | awk '{print $1}'); fi
+          if [ "$LOCAL" != "$REMOTE" ]; then echo "::error::$TAG does not match mattermost/desktop"; exit 1; fi
+          if git merge-base --is-ancestor "$LOCAL" HEAD; then echo "tag=" >> "$GITHUB_OUTPUT"; else echo "tag=$TAG" >> "$GITHUB_OUTPUT"; fi
+      - name: Merge check (git only, nothing is run)
+        if: steps.tag.outputs.tag != ''
+        id: merge
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          git config user.name ifl-upstream
+          git config user.email ifl-upstream@users.noreply.github.com
+          if git merge --no-commit --no-ff "refs/upstream-tags/$TAG" >/dev/null; then
+            echo "status=clean" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=conflict" >> "$GITHUB_OUTPUT"
+            echo "Conflicting files:"
+            git diff --name-only --diff-filter=U
+          fi
+          git merge --abort
+
+  propose:
+    needs: check
+    if: needs.check.outputs.tag != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Validate the check's result
+        env:
+          TAG: ${{ needs.check.outputs.tag }}
+          STATUS: ${{ needs.check.outputs.status }}
+        run: |
+          [[ "$TAG" =~ ^v6\.[0-9]+\.[0-9]+$ ]] || { echo "::error::unexpected tag"; exit 1; }
+          [[ "$STATUS" == clean || "$STATUS" == conflict ]] || { echo "::error::unexpected status"; exit 1; }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: needs.check.outputs.status == 'clean'
+        with:
+          fetch-depth: 0
+      - name: Push upstream/<tag> and open a PR
+        if: needs.check.outputs.status == 'clean'
+        id: push
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.check.outputs.tag }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          UPSTREAM_URL=https://github.com/mattermost/desktop.git
+          git fetch --quiet --no-tags "$UPSTREAM_URL" "+refs/tags/$TAG:refs/upstream-tags/$TAG"
+          LOCAL=$(git rev-parse "refs/upstream-tags/$TAG^{commit}")
+          REMOTE=$(git ls-remote "$UPSTREAM_URL" "refs/tags/$TAG^{}" | awk '{print $1}')
+          if [ -z "$REMOTE" ]; then REMOTE=$(git ls-remote "$UPSTREAM_URL" "refs/tags/$TAG" | awk '{print $1}'); fi
+          if [ "$LOCAL" != "$REMOTE" ]; then echo "::error::$TAG does not match mattermost/desktop"; exit 1; fi
+          git config user.name ifl-upstream
+          git config user.email ifl-upstream@users.noreply.github.com
+          BRANCH="upstream/$TAG"
+          git switch -c "$BRANCH"
+          git merge --no-ff -m "Merge Mattermost Desktop $TAG" "refs/upstream-tags/$TAG"
+          # GITHUB_TOKEN cannot push changes to .github/workflows; such merges go to an issue instead.
+          if ! git push --force origin "$BRANCH"; then
+            echo "pushed=no" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "pushed=yes" >> "$GITHUB_OUTPUT"
+          if [ -z "$(gh pr list -R "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')" ]; then
+            # Needs "Allow GitHub Actions to create and approve pull requests" (Settings -> Actions); else an issue.
+            gh pr create -R "$GITHUB_REPOSITORY" --base ifl/main --head "$BRANCH" --title "Upstream $TAG" \
+              --body "Mattermost Desktop $TAG merges into ifl/main without conflicts. This is a merge check only: nothing was built or tested. PR CI does that (close and reopen this PR to start it: PRs opened by Actions do not trigger workflows). Before merging, follow IFL.md (Upstream releases): keep every // IFL: hook, update ifl/UPSTREAM, src/ifl/release.ts and the version, and disable any new upstream workflow. Run: $RUN." \
+              || echo "pr=no" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Open or update the issue
+        if: needs.check.outputs.status == 'conflict' || steps.push.outputs.pushed == 'no' || steps.push.outputs.pr == 'no'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.check.outputs.tag }}
+          STATUS: ${{ needs.check.outputs.status }}
+          PUSHED: ${{ steps.push.outputs.pushed }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ "$STATUS" = conflict ]; then
+            TEXT="does not merge cleanly (conflicting files in the run log)"
+          elif [ "$PUSHED" = yes ]; then
+            TEXT="merges cleanly and is on branch upstream/$TAG, but the PR could not be opened (allow Actions to create pull requests, or open it by hand)"
+          else
+            TEXT="merges cleanly, but the branch could not be pushed (upstream changed .github/workflows, which the Actions token may not push)"
+          fi
+          TITLE="Upstream $TAG"
+          BODY="Mattermost Desktop $TAG $TEXT. This is a merge check only: nothing was built or tested. Run: $RUN. Merge on a workstation (IFL.md, Upstream releases)."
+          N=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --search "\"$TITLE\" in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$N" ]; then gh issue comment "$N" -R "$GITHUB_REPOSITORY" --body "$BODY"; else gh issue create -R "$GITHUB_REPOSITORY" --title "$TITLE" --body "$BODY"; fi
