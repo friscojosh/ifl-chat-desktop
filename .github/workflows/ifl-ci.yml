@@ -1,0 +1,35 @@
+name: ifl-ci
+on:
+  push:
+    branches: [ifl/main]
+  pull_request:
+    branches: [ifl/main]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Native build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libxtst-dev libpng++-dev
+      - run: npm ci
+      - run: npm run lint:js-quiet
+      - run: npm run check-types
+      - run: npm run check-build-config
+      - run: npm run test:unit
+        env:
+          ELECTRON_DISABLE_SANDBOX: "1"
+      - name: Unsigned Linux build (x64 tar.gz)
+        run: |
+          npm run build-prod
+          npx electron-builder --linux tar.gz --x64 --publish=never
+          ls release/*/
